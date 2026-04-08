@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>S.E. Global — Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0a;
+      color: #f0e6c8;
+      font-family: 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+
+    .brand {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #c9a84c;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #f0e6c8;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 28px;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .count {
+      font-size: 12px;
+      color: #555;
+    }
+
+    .count span {
+      color: #c9a84c;
+      font-weight: 600;
+    }
+
+    button {
+      background: #c9a84c;
+      color: #0a0a0a;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 18px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #e0bf6a; }
+    button:disabled { background: #2a2a2a; color: #555; cursor: not-allowed; }
+
+    .messages {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message-card {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-left: 3px solid #c9a84c;
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+
+    .message-text {
+      font-size: 14px;
+      color: #f0e6c8;
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+
+    .message-meta {
+      font-size: 11px;
+      color: #444;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .empty {
+      text-align: center;
+      color: #333;
+      font-size: 13px;
+      padding: 60px 0;
+    }
+
+    .loading {
+      text-align: center;
+      color: #444;
+      font-size: 13px;
+      padding: 60px 0;
+    }
+
+    .status {
+      margin-top: 16px;
+      font-size: 12px;
+      color: #555;
+      text-align: center;
+    }
+
+    .status.err { color: #e05c5c; }
+  </style>
+</head>
+<body>
+
+  <div class="brand">S.E. Global</div>
+  <h1>Admin — Messages</h1>
+  <p class="subtitle">All captured user messages</p>
+
+  <div class="toolbar">
+    <div class="count" id="count">Loading...</div>
+    <button id="refreshBtn" onclick="loadMessages()">REFRESH</button>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="loading">Fetching messages...</div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <script>
+    const SUPABASE_URL = "https://jbhtlakyttznbkfwghor.supabase.co";
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpiaHRsYWt5dHR6bmJrZndnaG9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NTg1MDYsImV4cCI6MjA5MTIzNDUwNn0.mPlzfKm8LIZEB4XwST1MaKC9NK4Zl4utDQO-nq28aPA";
+
+    async function loadMessages() {
+      const btn = document.getElementById("refreshBtn");
+      const container = document.getElementById("messages");
+      const countEl = document.getElementById("count");
+      const statusEl = document.getElementById("status");
+
+      btn.disabled = true;
+      statusEl.textContent = "";
+      container.innerHTML = '<div class="loading">Fetching messages...</div>';
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/messages?select=*&order=created_at.desc`, {
+          headers: {
+            "apikey": ANON_KEY,
+            "Authorization": `Bearer ${ANON_KEY}`
+          }
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message || "Fetch failed");
+        }
+
+        countEl.innerHTML = `<span>${data.length}</span> message${data.length !== 1 ? "s" : ""}`;
+
+        if (data.length === 0) {
+          container.innerHTML = '<div class="empty">No messages yet.</div>';
+          return;
+        }
+
+        container.innerHTML = "";
+        data.forEach(msg => {
+          const date = new Date(msg.created_at);
+          const formatted = date.toLocaleString();
+          const card = document.createElement("div");
+          card.className = "message-card";
+          card.innerHTML = `
+            <div class="message-text">${escapeHTML(msg.text)}</div>
+            <div class="message-meta">
+              <span>ID: ${msg.id}</span>
+              <span>${formatted}</span>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+
+      } catch (e) {
+        container.innerHTML = '<div class="empty">Failed to load messages.</div>';
+        statusEl.textContent = e.message;
+        statusEl.className = "status err";
+        countEl.textContent = "Error";
+      }
+
+      btn.disabled = false;
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    loadMessages();
+  </script>
+
+</body>
+</html>
